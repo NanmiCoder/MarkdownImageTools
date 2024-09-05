@@ -1,0 +1,3 @@
+ALIYUN_UPLOADER = 'aliyun'
+QINIU_UPLOADER = 'qiniu'
+ZHISHIXINGQIU_UPLOADER = 'zhishixingqiu'

@@ -1,14 +1,18 @@
 import os
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton,
-                             QFileDialog, QTextBrowser, QProgressBar, QMessageBox, QDesktopWidget,
-                             QHBoxLayout, QLabel, QApplication)
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtGui import QFont
+
 import markdown
 from pygments.formatters import HtmlFormatter
-from core.markdown_parser import MarkdownParser
-from core.image_uploader import ImageUploader
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QFileDialog,
+                             QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+                             QProgressBar, QPushButton, QTextBrowser,
+                             QVBoxLayout, QWidget)
+
+from config import IMAGE_PROVIDER_NAME
 from core.file_handler import FileHandler
+from core.image_uploader import ImageUploader
+from core.markdown_parser import MarkdownParser
 from utils.config import load_style_sheet
 
 
@@ -26,7 +30,7 @@ class MainWindow(QMainWindow):
         self.setup_ui()
 
         self.markdown_parser = MarkdownParser()
-        self.image_uploader = ImageUploader()
+        self.image_uploader = ImageUploader(upload_service=IMAGE_PROVIDER_NAME)
         self.file_handler = FileHandler()
 
         self.markdown_content = ""
@@ -37,6 +41,10 @@ class MainWindow(QMainWindow):
         self.center_window()
 
     def center_window(self):
+        """
+        Centers the window on the screen.
+        :return:
+        """
         screen = QDesktopWidget().screenNumber(QDesktopWidget().cursor().pos())
         center_point = QDesktopWidget().screenGeometry(screen).center()
         frame_geometry = self.frameGeometry()
@@ -44,6 +52,10 @@ class MainWindow(QMainWindow):
         self.move(frame_geometry.topLeft())
 
     def setup_ui(self):
+        """
+        Sets up the UI components.
+        :return:
+        """
         self.upload_button = QPushButton("Upload Markdown File")
         self.upload_button.clicked.connect(self.upload_markdown)
         self.layout.addWidget(self.upload_button)
@@ -79,6 +91,10 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.download_button)
 
     def upload_markdown(self):
+        """
+        Uploads the Markdown file.
+        :return:
+        """
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Markdown File", "", "Markdown Files (*.md)")
         if file_path:
             self.markdown_content = self.file_handler.read_file(file_path)
@@ -106,6 +122,10 @@ class MainWindow(QMainWindow):
             self.download_button.setEnabled(False)
 
     def replace_images(self):
+        """
+        Replaces the images in the Markdown file.
+        :return:
+        """
         if self.total_images == 0:
             QMessageBox.information(self, "No Images", "There are no images to process in this Markdown file.")
             return
@@ -114,18 +134,15 @@ class MainWindow(QMainWindow):
         self.replace_button.setEnabled(False)
 
         images = self.markdown_parser.parse_images(self.markdown_content)
-
-        for i, (image_path, start, end) in enumerate(images):
+        for i, image in enumerate(images):
+            image_path = image['path']
             if not image_path.startswith(('http://', 'https://')):
                 full_path = os.path.join(self.base_path, image_path)
                 if os.path.exists(full_path):
                     try:
-                        new_url = self.image_uploader.uploader(full_path)
-                        self.markdown_content = (
-                                self.markdown_content[:start] +
-                                self.markdown_content[start:end].replace(image_path, new_url) +
-                                self.markdown_content[end:]
-                        )
+                        new_url = self.image_uploader.upload(full_path)
+                        new_image_markdown = f'![{image["alt_text"]}]({new_url})'
+                        self.markdown_content = self.markdown_content.replace(image['original'], new_image_markdown)
                     except Exception as e:
                         QMessageBox.warning(self, "Upload Error", f"Failed to upload image {image_path}: {str(e)}")
                 else:
@@ -142,6 +159,11 @@ class MainWindow(QMainWindow):
         self.download_button.setEnabled(True)
 
     def render_markdown(self, content):
+        """
+        Renders the Markdown content in the QTextBrowser.
+        :param content:
+        :return:
+        """
         html = markdown.markdown(content, extensions=['fenced_code', 'codehilite'])
         formatter = HtmlFormatter(style='colorful')
         css = formatter.get_style_defs('.codehilite')
@@ -149,6 +171,10 @@ class MainWindow(QMainWindow):
         self.text_browser.setHtml(html)
 
     def download_markdown(self):
+        """
+        Downloads the modified Markdown file.
+        :return:
+        """
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Markdown File", "", "Markdown Files (*.md)")
         if file_path:
             self.file_handler.write_file(file_path, self.markdown_content)
