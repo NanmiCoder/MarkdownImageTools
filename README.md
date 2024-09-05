@@ -1,5 +1,5 @@
 # MarkdownImageTools
-Mardown图片处理工具, 当前的功能主要是讲Markdown中的图片替换成其他平台网络图片, 以便于快捷的将Markdown内容粘贴发布到网上。
+Mardown图片处理工具, 当前的功能主要是将Markdown中的图片替换成其他平台网络图片, 以便于快捷的将Markdown内容粘贴发布到网上。
 
 ### 页面介绍
 #### 1. 主页面
