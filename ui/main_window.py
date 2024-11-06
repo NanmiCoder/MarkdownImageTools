@@ -7,7 +7,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QFileDialog,
                              QHBoxLayout, QLabel, QMainWindow, QMessageBox,
                              QProgressBar, QPushButton, QTextBrowser,
-                             QVBoxLayout, QWidget)
+                             QVBoxLayout, QWidget, QLineEdit)
 
 from config import IMAGE_PROVIDER_NAME
 from core.file_handler import FileHandler
@@ -56,9 +56,29 @@ class MainWindow(QMainWindow):
         Sets up the UI components.
         :return:
         """
-        self.upload_button = QPushButton("Upload Markdown File")
-        self.upload_button.clicked.connect(self.upload_markdown)
-        self.layout.addWidget(self.upload_button)
+        # 创建一个水平布局来放置输入框和按钮
+        input_layout = QHBoxLayout()
+
+        # 添加一个 QLineEdit 来输入文件路径
+        self.path_input = QLineEdit(self)
+        self.path_input.setPlaceholderText("输入Markdown文件的绝对文件地址")
+        self.path_input.setMinimumHeight(45)  # 设置最小高度        
+        input_layout.addWidget(self.path_input)
+
+        # 添加一个按钮用于从文件对话框选择文件
+        self.browse_button = QPushButton("选择电脑中的Markdown文件")
+        self.browse_button.clicked.connect(self.browse_file)
+        self.browse_button.setMinimumHeight(30)
+        input_layout.addWidget(self.browse_button)
+
+        # 添加一个按钮用于加载输入框中的路径
+        self.load_button = QPushButton("加载文件")
+        self.load_button.clicked.connect(self.load_markdown_from_path)
+        self.load_button.setMinimumHeight(30)
+        input_layout.addWidget(self.load_button)
+
+        # 将水平布局添加到主布局中
+        self.layout.addLayout(input_layout)
 
         self.text_browser = QTextBrowser()
         self.text_browser.setOpenExternalLinks(True)
@@ -75,51 +95,69 @@ class MainWindow(QMainWindow):
         self.progress_bar.setTextVisible(False)  # 隐藏进度条上的文字
         progress_layout.addWidget(self.progress_bar)
 
-        self.progress_label = QLabel("No images to process")
+        self.progress_label = QLabel("没有图片在处理中")
         progress_layout.addWidget(self.progress_label)
 
         self.layout.addLayout(progress_layout)
 
-        self.replace_button = QPushButton("Replace Images")
+        self.replace_button = QPushButton("替换Markdown中图片")
         self.replace_button.clicked.connect(self.replace_images)
         self.replace_button.setEnabled(False)
         self.layout.addWidget(self.replace_button)
 
-        self.download_button = QPushButton("Download Modified Markdown")
+        self.download_button = QPushButton("下载修改后的Markdown文件")
         self.download_button.clicked.connect(self.download_markdown)
         self.download_button.setEnabled(False)
         self.layout.addWidget(self.download_button)
 
-    def upload_markdown(self):
+    def browse_file(self):
         """
-        Uploads the Markdown file.
+        Opens a file dialog to select a Markdown file and sets the path in the QLineEdit.
+        """
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择Markdown文件", "", "Markdown Files (*.md)")
+        if file_path:
+            self.path_input.setText(file_path)  # 将选择的文件路径设置到输入框中
+
+    def load_markdown_from_path(self):
+        """
+        Loads the Markdown file from the path specified in the QLineEdit.
         :return:
         """
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Markdown File", "", "Markdown Files (*.md)")
+        file_path = self.path_input.text().strip()
         if file_path:
-            self.markdown_content = self.file_handler.read_file(file_path)
-            self.base_path = os.path.dirname(file_path)
-            self.markdown_content = self.markdown_parser.replace_image_paths(self.markdown_content, self.base_path)
+            self.process_markdown_file(file_path)
+        else:
+            QMessageBox.warning(self, "错误", "请输入一个有效的文件路径.")
 
-            # 计算总图片数量
-            images = self.markdown_parser.parse_images(self.markdown_content)
-            self.total_images = len(images)
-            self.processed_images = 0
+    def process_markdown_file(self, file_path):
+        """
+        Processes the Markdown file at the given path.
+        :param file_path: str
+        :return:
+        """
+        self.markdown_content = self.file_handler.read_file(file_path)
+        self.base_path = os.path.dirname(file_path)
+        self.markdown_content = self.markdown_parser.replace_image_paths(self.markdown_content, self.base_path)
 
-            # 更新进度条和标签
-            if self.total_images > 0:
-                self.progress_bar.setRange(0, self.total_images)
-                self.progress_bar.setValue(0)
-                self.progress_label.setText(f"0 / {self.total_images}")
-                self.replace_button.setEnabled(True)
-            else:
-                self.progress_bar.setRange(0, 1)  # 设置范围为0-1
-                self.progress_bar.setValue(1)  # 设置值为1，显示满格
-                self.progress_label.setText("No images to process")
-                self.replace_button.setEnabled(False)
+        # 计算总图片数量
+        images = self.markdown_parser.parse_images(self.markdown_content)
+        self.total_images = len(images)
+        self.processed_images = 0
 
-            self.render_markdown(self.markdown_content)
-            self.download_button.setEnabled(False)
+        # 更新进度条和标签
+        if self.total_images > 0:
+            self.progress_bar.setRange(0, self.total_images)
+            self.progress_bar.setValue(0)
+            self.progress_label.setText(f"0 / {self.total_images}")
+            self.replace_button.setEnabled(True)
+        else:
+            self.progress_bar.setRange(0, 1)  # 设置范围为0-1
+            self.progress_bar.setValue(1)  # 设置值为1，显示满格
+            self.progress_label.setText("No images to process")
+            self.replace_button.setEnabled(False)
+
+        self.render_markdown(self.markdown_content)
+        self.download_button.setEnabled(False)
 
     def replace_images(self):
         """
@@ -130,7 +168,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No Images", "There are no images to process in this Markdown file.")
             return
 
-        self.upload_button.setEnabled(False)
+        self.browse_button.setEnabled(False)
         self.replace_button.setEnabled(False)
 
         images = self.markdown_parser.parse_images(self.markdown_content)
@@ -154,7 +192,7 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()  # 确保 UI 更新
 
         self.render_markdown(self.markdown_content)
-        self.upload_button.setEnabled(True)
+        self.browse_button.setEnabled(True)
         self.replace_button.setEnabled(True)
         self.download_button.setEnabled(True)
 
